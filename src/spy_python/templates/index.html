@@ -1,0 +1,432 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SPY Chart with Saty Phase Oscillator</title>
+    <script src="https://unpkg.com/lightweight-charts/dist/lightweight-charts.standalone.production.js"></script>
+    <script src="{{ url_for('static', filename='js/chart.js') }}"></script>
+    <style>
+        body {
+            margin: 0;
+            padding: 20px;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+            background-color: #121212;
+            color: #DDD;
+        }
+
+        #chart-container {
+            position: relative;
+            height: 800px;
+            width: 100%;
+        }
+
+        .legend {
+            position: absolute;
+            left: 12px;
+            top: 12px;
+            z-index: 1;
+            font-size: 14px;
+            line-height: 18px;
+            font-weight: 300;
+            background-color: rgba(30, 30, 30, 0.9);
+            padding: 8px;
+            border-radius: 4px;
+            border: 1px solid #2B2B2B;
+        }
+
+        .legend-item {
+            margin: 4px 0;
+        }
+
+        .legend-item div {
+            display: inline-block;
+            margin-right: 12px;
+        }
+    </style>
+</head>
+<body>
+    <div id="chart"></div>
+
+    <script>
+        // Function to convert UTC to EST/EDT
+        function getEasternTime(utcDate) {
+            const date = new Date(utcDate);
+            const easternDate = new Date(date.toLocaleString('en-US', { timeZone: 'America/New_York' }));
+            return easternDate;
+        }
+
+        // Function to format price
+        function formatPrice(price) {
+            return price ? price.toFixed(2) : '-';
+        }
+
+        // Function to format volume
+        function formatVolume(volume) {
+            if (!volume) return '-';
+            if (volume >= 1000000) {
+                return (volume / 1000000).toFixed(2) + 'M';
+            }
+            if (volume >= 1000) {
+                return (volume / 1000).toFixed(2) + 'K';
+            }
+            return volume.toString();
+        }
+
+        // Initialize chart with proper configuration
+        const chart = LightweightCharts.createChart(document.getElementById('chart'), {
+            width: window.innerWidth,
+            height: window.innerHeight - 50,
+            layout: {
+                background: { color: '#1e222d' },
+                textColor: '#d9d9d9',
+            },
+            grid: {
+                vertLines: { color: 'rgba(43, 43, 67, 0.5)' },
+                horzLines: { color: 'rgba(43, 43, 67, 0.5)' },
+            },
+            crosshair: {
+                mode: LightweightCharts.CrosshairMode.Normal,
+                vertLine: {
+                    width: 1,
+                    style: 1,
+                    visible: true,
+                    labelVisible: true,
+                    labelBackgroundColor: '#2b2b43',
+                    color: '#758696',
+                },
+                horzLine: {
+                    width: 1,
+                    style: 1,
+                    visible: true,
+                    labelVisible: true,
+                    labelBackgroundColor: '#2b2b43',
+                    color: '#758696',
+                },
+            },
+            timeScale: {
+                timeVisible: true,
+                secondsVisible: false,
+                borderColor: '#2b2b43',
+                rightOffset: 12,
+                barSpacing: 6,
+                fixLeftEdge: false,
+                lockVisibleTimeRangeOnResize: true,
+                rightBarStaysOnScroll: true,
+                borderVisible: false,
+                visible: true,
+            },
+            handleScroll: {
+                mouseWheel: true,
+                pressedMouseMove: true,
+                horzTouchDrag: true,
+                vertTouchDrag: true,
+            },
+            handleScale: {
+                mouseWheel: true,
+                pressedMouseMove: true,
+                pinch: true,
+                axisPressedMouseMove: true,
+            },
+        });
+
+        // Create candlestick series
+        const candlestickSeries = chart.addCandlestickSeries({
+            upColor: '#26a69a',
+            downColor: '#ef5350',
+            borderVisible: true,
+            wickVisible: true,
+            borderUpColor: '#26a69a',
+            borderDownColor: '#ef5350',
+            wickUpColor: '#26a69a',
+            wickDownColor: '#ef5350',
+        });
+
+        // Create volume series
+        const volumeSeries = chart.addHistogramSeries({
+            color: '#26a69a',
+            priceFormat: {
+                type: 'volume',
+            },
+            priceScaleId: '',
+            scaleMargins: {
+                top: 0.8,
+                bottom: 0,
+            },
+        });
+
+        // Create Saty Phase Oscillator series
+        const oscillatorSeries = chart.addLineSeries({
+            color: '#26a69a',
+            lineWidth: 2,
+            priceFormat: {
+                type: 'price',
+                precision: 2,
+                minMove: 0.01,
+            },
+            priceScaleId: 'oscillator',
+            scaleMargins: {
+                top: 0.8,
+                bottom: 0.1,
+            },
+        });
+
+        // Add zone lines for the oscillator
+        const zoneLines = {
+            extendedUp: chart.addLineSeries({
+                color: '#c8c8c8',
+                lineWidth: 1,
+                priceScaleId: 'oscillator',
+                scaleMargins: {
+                    top: 0.8,
+                    bottom: 0.1,
+                },
+            }),
+            distribution: chart.addLineSeries({
+                color: '#969696',
+                lineWidth: 1,
+                priceScaleId: 'oscillator',
+                scaleMargins: {
+                    top: 0.8,
+                    bottom: 0.1,
+                },
+            }),
+            neutralUp: chart.addLineSeries({
+                color: '#646464',
+                lineWidth: 1,
+                priceScaleId: 'oscillator',
+                scaleMargins: {
+                    top: 0.8,
+                    bottom: 0.1,
+                },
+            }),
+            neutralDown: chart.addLineSeries({
+                color: '#646464',
+                lineWidth: 1,
+                priceScaleId: 'oscillator',
+                scaleMargins: {
+                    top: 0.8,
+                    bottom: 0.1,
+                },
+            }),
+            accumulation: chart.addLineSeries({
+                color: '#969696',
+                lineWidth: 1,
+                priceScaleId: 'oscillator',
+                scaleMargins: {
+                    top: 0.8,
+                    bottom: 0.1,
+                },
+            }),
+            extendedDown: chart.addLineSeries({
+                color: '#c8c8c8',
+                lineWidth: 1,
+                priceScaleId: 'oscillator',
+                scaleMargins: {
+                    top: 0.8,
+                    bottom: 0.1,
+                },
+            }),
+        };
+
+        // Set constant values for zone lines
+        const data = [];
+        const zoneData = data.map(item => ({ time: item.time }));
+        zoneLines.extendedUp.setData(zoneData.map(item => ({ ...item, value: 100 })));
+        zoneLines.distribution.setData(zoneData.map(item => ({ ...item, value: 61.8 })));
+        zoneLines.neutralUp.setData(zoneData.map(item => ({ ...item, value: 23.6 })));
+        zoneLines.neutralDown.setData(zoneData.map(item => ({ ...item, value: -23.6 })));
+        zoneLines.accumulation.setData(zoneData.map(item => ({ ...item, value: -61.8 })));
+        zoneLines.extendedDown.setData(zoneData.map(item => ({ ...item, value: -100 })));
+
+        // Set oscillator data
+        oscillatorSeries.setData(data.map(item => ({
+            time: item.time,
+            value: item.oscillator,
+            color: item.compression ? '#ff00ff' : (item.oscillator >= 0 ? '#00ff00' : '#ff0000')
+        })));
+
+        // Add markers for zone crosses
+        const markers = [];
+        data.forEach((item, index) => {
+            if (item.leaving_accumulation) {
+                markers.push({
+                    time: item.time,
+                    position: 'belowBar',
+                    color: '#ffff00',
+                    shape: 'circle',
+                    text: 'LA'
+                });
+            }
+            if (item.leaving_extreme_down) {
+                markers.push({
+                    time: item.time,
+                    position: 'belowBar',
+                    color: '#ffff00',
+                    shape: 'circle',
+                    text: 'LED'
+                });
+            }
+            if (item.leaving_distribution) {
+                markers.push({
+                    time: item.time,
+                    position: 'aboveBar',
+                    color: '#ffff00',
+                    shape: 'circle',
+                    text: 'LD'
+                });
+            }
+            if (item.leaving_extreme_up) {
+                markers.push({
+                    time: item.time,
+                    position: 'aboveBar',
+                    color: '#ffff00',
+                    shape: 'circle',
+                    text: 'LEU'
+                });
+            }
+        });
+        oscillatorSeries.setMarkers(markers);
+
+        // Subscribe to crosshair move
+        chart.subscribeCrosshairMove((param) => {
+            if (param === undefined || param.time === undefined || param.point.x < 0 || param.point.y < 0) {
+                // Handle no data case
+                document.getElementById('legend-open').textContent = '-';
+                document.getElementById('legend-high').textContent = '-';
+                document.getElementById('legend-low').textContent = '-';
+                document.getElementById('legend-close').textContent = '-';
+                document.getElementById('legend-volume').textContent = 'Vol: -';
+                return;
+            }
+
+            const data = param.seriesData.get(candlestickSeries);
+            if (data) {
+                const isUp = data.close >= data.open;
+                const colorClass = isUp ? 'up' : 'down';
+
+                const elements = ['open', 'high', 'low', 'close'];
+                elements.forEach(type => {
+                    const element = document.getElementById(`legend-${type}`);
+                    element.textContent = formatPrice(data[type]);
+                    element.className = `legend-value ${colorClass}`;
+                });
+
+                document.getElementById('legend-volume').textContent = 
+                    `Vol: ${formatVolume(param.seriesData.get(volumeSeries))}`;
+            }
+        });
+
+        // Handle window resize
+        window.addEventListener('resize', () => {
+            chart.applyOptions({
+                width: window.innerWidth,
+                height: window.innerHeight - 50,
+            });
+        });
+
+        // Fetch and update data
+        async function fetchData(fitContent = false) {
+            try {
+                const selectedDate = new Date(datePicker.value);
+                const response = await fetch(`/api/data?date=${selectedDate.toISOString()}`);
+                const result = await response.json();
+                
+                if (result.error) {
+                    console.error('Error fetching data:', result.error);
+                    return;
+                }
+
+                const candleData = result.data.map(bar => ({
+                    time: Math.floor(new Date(bar.date).getTime() / 1000),
+                    open: parseFloat(bar.open),
+                    high: parseFloat(bar.high),
+                    low: parseFloat(bar.low),
+                    close: parseFloat(bar.close),
+                    volume: parseFloat(bar.volume)
+                }));
+
+                candlestickSeries.setData(candleData);
+                volumeSeries.setData(candleData.map(bar => ({
+                    time: bar.time,
+                    value: bar.volume,
+                    color: bar.close >= bar.open ? 'rgba(38, 166, 154, 0.5)' : 'rgba(239, 83, 80, 0.5)'
+                })));
+
+                if (fitContent) {
+                    chart.timeScale().fitContent();
+                }
+
+            } catch (error) {
+                console.error('Error in fetchData:', error);
+            }
+        }
+
+        // Initialize UI controls
+        const datePicker = document.getElementById('datePicker');
+        const volumeToggle = document.getElementById('volumeToggle');
+        let isVolumeVisible = true;
+
+        // Event listeners
+        datePicker.addEventListener('change', () => {
+            fetchData(true);
+        });
+
+        volumeToggle.addEventListener('click', () => {
+            isVolumeVisible = !isVolumeVisible;
+            volumeSeries.applyOptions({
+                visible: isVolumeVisible
+            });
+        });
+
+        // Initial data fetch
+        fetchData(true);
+
+        // Initialize with latest date
+        async function initializeDatePicker() {
+            try {
+                const response = await fetch('/api/latest-date');
+                const result = await response.json();
+                
+                if (result.error) {
+                    console.error('Error:', result.error);
+                    return;
+                }
+
+                // Set the date picker to the latest available date
+                const latestDate = new Date(result.date);
+                datePicker.value = latestDate.toISOString().split('T')[0];
+                
+            } catch (error) {
+                console.error('Error initializing date picker:', error);
+                // Set fallback to today's date
+                const today = new Date();
+                datePicker.value = today.toISOString().split('T')[0];
+            }
+        }
+
+        // Initialize with latest date
+        initializeDatePicker();
+
+        // Refresh data every 60 seconds without resetting view
+        const refreshInterval = 60000; // 60 seconds
+        let lastRefreshTime = Date.now();
+
+        function scheduleNextRefresh() {
+            const now = Date.now();
+            const timeSinceLastRefresh = now - lastRefreshTime;
+            const timeUntilNextRefresh = Math.max(0, refreshInterval - timeSinceLastRefresh);
+
+            setTimeout(() => {
+                if (!isUserInteracting) {
+                    fetchData(false);
+                }
+                lastRefreshTime = Date.now();
+                scheduleNextRefresh();
+            }, timeUntilNextRefresh);
+        }
+
+        scheduleNextRefresh();
+    </script>
+</body>
+</html>

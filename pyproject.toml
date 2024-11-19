@@ -1,0 +1,24 @@
+[tool.poetry]
+name = "spy-python"
+version = "0.1.0"
+description = "SPY data analysis and visualization tool"
+authors = ["Your Name"]
+
+[tool.poetry.dependencies]
+python = "^3.11"
+pandas = "^2.2.1"
+psycopg2-binary = "^2.9.9"
+python-dotenv = "^1.0.1"
+lightweight-charts = {git = "https://github.com/louisnw01/lightweight-charts-python"}
+SQLAlchemy = "^2.0.27"
+loguru = "^0.7.2"
+
+[tool.poetry.dev-dependencies]
+pytest = "^8.0.0"
+black = "^24.1.1"
+flake8 = "^7.0.0"
+mypy = "^1.8.0"
+
+[build-system]
+requires = ["poetry-core>=1.0.0"]
+build-backend = "poetry.core.masonry.api"
